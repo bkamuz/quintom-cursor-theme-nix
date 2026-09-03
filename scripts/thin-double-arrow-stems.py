@@ -4,8 +4,8 @@
 Edits the real Inkscape export templates (m 132,-220.5) used by
 fd_double_arrow, bd_double_arrow, sb_v_double_arrow, sb_h_double_arrow.
 
-- Stem width 2 -> 1 (insets l 2.5 / walls at 132±0.5)
-- Arrowheads scaled 0.85 toward each tip (all bezier wings)
+- Stem width 2 -> 1 (insets to walls at 132±0.5)
+- Arrowheads scaled 0.70 toward each tip (all bezier wings, mirrored)
 - Stem lengthened so tip-to-tip extent stays the same
 
 Does NOT touch slice-grid angle-row shapes or single-direction sb_* arrows.
@@ -78,8 +78,8 @@ EXPORT_TEMPLATE_THIN_STEM = (
     "C 133.06705,-218.72404 132.53893,-219.63 132,-220.5 Z"
 )
 
-# Thin stem + heads scaled 0.85 toward tips (mirror-symmetric), stem lengthened.
-EXPORT_TEMPLATE_FINAL = (
+# Prior head scale 0.85 (superseded by smaller FINAL).
+EXPORT_TEMPLATE_HEADS_085 = (
     "m 132,-220.5 c -0.46745,0.7395 -0.92192,1.50965 -1.36133,2.30596 "
     "-0.43834,0.80394 -0.83406,1.59175 -1.18867,2.36739 l 2.05,0 v 2 5.65341 "
     "l -2.05,0 c 0.35461,0.77563 0.75033,1.56345 1.18867,2.36739 "
@@ -90,7 +90,19 @@ EXPORT_TEMPLATE_FINAL = (
     "-0.43941,-0.79631 -0.89388,-1.56646 -1.36133,-2.30596 Z"
 )
 
-STEM_EXTRA = 1.65341  # 7.65341 - 6
+# Thin stem + heads scaled 0.70 toward tips (mirror-symmetric), stem lengthened.
+EXPORT_TEMPLATE_FINAL = (
+    "m 132,-220.5 c -0.38496,0.609 -0.75923,1.24324 -1.12109,1.89902 "
+    "-0.36099,0.66207 -0.68687,1.31085 -0.97891,1.94961 l 1.6,0 v 2 7.30283 "
+    "l -1.6,0 c 0.29203,0.63876 0.61792,1.28754 0.97891,1.94961 "
+    "0.36186,0.65582 0.73613,1.29002 1.12109,1.89902 c 0.38496,-0.609 "
+    "0.75923,-1.24321 1.12109,-1.89902 0.36099,-0.66207 0.68687,-1.31085 "
+    "0.97891,-1.94961 l -1.6,0 v -7.30283 -2 l 1.6,0 "
+    "c -0.29203,-0.63876 -0.61792,-1.28754 -0.97891,-1.94961 "
+    "-0.36186,-0.65578 -0.73613,-1.29002 -1.12109,-1.89902 Z"
+)
+
+STEM_EXTRA = 3.30283  # 9.30283 - 6
 
 # Stem thinning on shadows (width), applied from master-ish fragments.
 SHADOW_STEM_WIDTH: list[tuple[str, str]] = [
@@ -217,8 +229,13 @@ def restore_ids_from_master(text: str, master_text: str, ids: tuple[str, ...]) -
 
 
 def patch_export_templates(text: str) -> str:
-    known = {EXPORT_TEMPLATE_MASTER, EXPORT_TEMPLATE_THIN_STEM, EXPORT_TEMPLATE_FINAL}
-    # Prior asymmetric head-shrink attempt (replaced by mirror-symmetric FINAL).
+    known = {
+        EXPORT_TEMPLATE_MASTER,
+        EXPORT_TEMPLATE_THIN_STEM,
+        EXPORT_TEMPLATE_HEADS_085,
+        EXPORT_TEMPLATE_FINAL,
+    }
+    # Prior asymmetric head-shrink attempt.
     known.add(
         "m 132,-220.5 c -0.46745,0.7395 -0.92192,1.50965 -1.36133,2.30596 "
         "-0.43834,0.80394 -0.83406,1.59175 -1.18867,2.36739 l 2.05,0.002 v 2 5.64941 "
@@ -238,7 +255,7 @@ def patch_export_templates(text: str) -> str:
             continue
         if d in known:
             text = replace_path_d(text, path_id, EXPORT_TEMPLATE_FINAL)
-            print(f"  export {path_id} -> thin stem + small heads")
+            print(f"  export {path_id} -> thin stem + smaller heads (0.70)")
         else:
             raise ValueError(f"{path_id}: unexpected template path data")
     return text
