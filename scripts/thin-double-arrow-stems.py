@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Thin stems on the four double-arrow resize cursor export paths.
+"""Thin stems and shrink arrowheads on double-arrow resize export paths.
 
 Edits the real Inkscape export templates (m 132,-220.5) used by
 fd_double_arrow, bd_double_arrow, sb_v_double_arrow, sb_h_double_arrow.
 
-Does NOT touch:
-- slice-grid angle-row shapes (ll/lr/ul/ur_angle)
-- single-direction sb_* arrows
-- arrowhead bezier coefficients (keeps heads symmetric)
+- Stem width 2 -> 1 (insets l 2.5 / walls at 132±0.5)
+- Arrowheads scaled 0.85 toward each tip (all bezier wings)
+- Stem lengthened so tip-to-tip extent stays the same
+
+Does NOT touch slice-grid angle-row shapes or single-direction sb_* arrows.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Paths that were wrongly thinned on the angle-row slice grid; restore from master.
 WRONG_SLICE_IDS = (
     "rect4955",
     "rect4945",
@@ -34,7 +34,6 @@ WRONG_SLICE_IDS = (
     "path3165",
 )
 
-# Fill + white-outline clones of the vertical double-arrow template.
 EXPORT_TEMPLATE_IDS = (
     "path3520",
     "path3522",
@@ -46,7 +45,6 @@ EXPORT_TEMPLATE_IDS = (
     "path2614",
 )
 
-# Soft-shadow companions for the same four cursors.
 SHADOW_IDS = (
     "path4405",
     "path4455",
@@ -58,64 +56,124 @@ SHADOW_IDS = (
     "path4539",
 )
 
-# Stem insets only: width 2 -> 1, heads unchanged.
-EXPORT_STEM_REPLACEMENTS: list[tuple[str, str]] = [
-    ("l 2,0.002 v 2 4 l -2,0.002", "l 2.5,0.002 v 2 4 l -2.5,0.002"),
-    ("l -2,0.002 v -4 -2 l 2,0.002", "l -2.5,0.002 v -4 -2 l 2.5,0.002"),
-]
+# Master (unpatched) export template.
+EXPORT_TEMPLATE_MASTER = (
+    "m 132,-220.5 c -0.54994,0.87 -1.08461,1.77606 -1.60156,2.71289 "
+    "-0.5157,0.94581 -0.98125,1.87265 -1.39844,2.78516 l 2,0.002 v 2 4 l -2,0.002 "
+    "c 0.41719,0.91251 0.88274,1.83935 1.39844,2.78516 0.51695,0.93688 1.05162,1.84289 "
+    "1.60156,2.71289 0.53893,-0.87 1.06705,-1.77596 1.58398,-2.71289 0.51599,-0.94635 "
+    "0.9877,-1.87604 1.41602,-2.78906 l -2,0.002 v -4 -2 l 2,0.002 "
+    "c -0.42832,-0.91302 -0.90003,-1.84271 -1.41602,-2.78906 "
+    "C 133.06705,-218.72404 132.53893,-219.63 132,-220.5 Z"
+)
 
-# Soft-shadow outer stem jumps grow by 0.5 when walls move inward (width 2 -> 1).
-SHADOW_SOFT_OUTER: list[tuple[str, str]] = [
+# Thin stem only (prior step).
+EXPORT_TEMPLATE_THIN_STEM = (
+    "m 132,-220.5 c -0.54994,0.87 -1.08461,1.77606 -1.60156,2.71289 "
+    "-0.5157,0.94581 -0.98125,1.87265 -1.39844,2.78516 l 2.5,0.002 v 2 4 l -2.5,0.002 "
+    "c 0.41719,0.91251 0.88274,1.83935 1.39844,2.78516 0.51695,0.93688 1.05162,1.84289 "
+    "1.60156,2.71289 0.53893,-0.87 1.06705,-1.77596 1.58398,-2.71289 0.51599,-0.94635 "
+    "0.9877,-1.87604 1.41602,-2.78906 l -2.5,0.002 v -4 -2 l 2.5,0.002 "
+    "c -0.42832,-0.91302 -0.90003,-1.84271 -1.41602,-2.78906 "
+    "C 133.06705,-218.72404 132.53893,-219.63 132,-220.5 Z"
+)
+
+# Thin stem + heads scaled 0.85 toward tips (mirror-symmetric), stem lengthened.
+EXPORT_TEMPLATE_FINAL = (
+    "m 132,-220.5 c -0.46745,0.7395 -0.92192,1.50965 -1.36133,2.30596 "
+    "-0.43834,0.80394 -0.83406,1.59175 -1.18867,2.36739 l 2.05,0 v 2 5.65341 "
+    "l -2.05,0 c 0.35461,0.77563 0.75033,1.56345 1.18867,2.36739 "
+    "0.43941,0.79635 0.89388,1.56646 1.36133,2.30596 c 0.46745,-0.7395 "
+    "0.92192,-1.50961 1.36133,-2.30596 0.43834,-0.80394 0.83406,-1.59175 "
+    "1.18867,-2.36739 l -2.05,0 v -5.65341 -2 l 2.05,0 "
+    "c -0.35461,-0.77563 -0.75033,-1.56345 -1.18867,-2.36739 "
+    "-0.43941,-0.79631 -0.89388,-1.56646 -1.36133,-2.30596 Z"
+)
+
+STEM_EXTRA = 1.65341  # 7.65341 - 6
+
+# Stem thinning on shadows (width), applied from master-ish fragments.
+SHADOW_STEM_WIDTH: list[tuple[str, str]] = [
     ("2.27734,0.002 v 1.5 3.5 l -2.27734,0.002", "2.77734,0.002 v 1.5 3.5 l -2.77734,0.002"),
     ("2.27735,0.002 v 1.5 3.5 l -2.27735,0.002", "2.77735,0.002 v 1.5 3.5 l -2.77735,0.002"),
     ("-2.28711,0.002 v -3.5 -1.5 l 2.28711,0.004", "-2.78711,0.002 v -3.5 -1.5 l 2.78711,0.004"),
-]
-
-# Harder outline-shadow stem jumps (path4455 / path4477).
-SHADOW_HARD_REL: list[tuple[str, str]] = [
     ("2.55664,0.004 v 1 3.00195 l -2.55664,0.002", "3.05664,0.004 v 1 3.00195 l -3.05664,0.002"),
     ("-2.57422,0.002 v -2.99805 -0.99805 l 2.57422,0.002", "-3.07422,0.002 v -2.99805 -0.99805 l 3.07422,0.002"),
-]
-
-# Absolute stem walls on path4527 / path4537 / path4539 outer.
-SHADOW_HARD_ABS: list[tuple[str, str]] = [
     ("L 130,-214 v 1 3.00195 l -2.55664,0.002", "L 130.5,-214 v 1 3.00195 l -3.05664,0.002"),
     ("L 150,-241 v 1 3.00195 l -2.55664,0.002", "L 150.5,-241 v 1 3.00195 l -3.05664,0.002"),
     ("L 150,-241 v 1 3 l -2.55469,0.002", "L 150.5,-241 v 1 3 l -3.05469,0.002"),
     ("-2.57422,0.002 V -213 v -0.99805 l 2.57422,0.002", "-3.07422,0.002 V -213 v -0.99805 l 3.07422,0.002"),
     ("-2.57422,0.002 V -240 v -0.99805 l 2.57422,0.002", "-3.07422,0.002 V -240 v -0.99805 l 3.07422,0.002"),
-]
-
-# path4507 absolute inner hole: keep ~0.5 inset from thinned fill walls.
-SHADOW_SOFT_INNER_ABS: list[tuple[str, str]] = [
     ("L 132.5,-214.5 v 2.5 4.5 l 1.68555", "L 132.25,-214.5 v 2.5 4.5 l 1.93555"),
     ("L 131.5,-207.5 v -4.5 -2.5 l -1.68945", "L 131.75,-207.5 v -4.5 -2.5 l -1.93945"),
-]
-
-# path4405 / path4407 relative inner hole jumps.
-SHADOW_SOFT_INNER_REL: list[tuple[str, str]] = [
     ("l -1.68359,-0.002 v 2.5 4.5 l 1.68555,-0.002", "l -2.18359,-0.002 v 2.5 4.5 l 2.18555,-0.002"),
     ("l 1.68945,-0.002 v -4.5 -2.5 l -1.68945,-0.002", "l 2.18945,-0.002 v -4.5 -2.5 l -2.18945,-0.002"),
-]
-
-# path4539 compound hole uses the rotated template stem (width 2 -> 1).
-PATH4539_HOLE: list[tuple[str, str]] = [
     ("L 153,-242 v 2 4 l 2,-0.002", "L 152.5,-242 v 2 4 l 2.5,-0.002"),
     ("l 2,-0.002 v -4 -2 l -2,-0.002", "l 2.5,-0.002 v -4 -2 l -2.5,-0.002"),
 ]
 
-ALL_SHADOW_REPLACEMENTS: list[tuple[str, str]] = (
-    SHADOW_SOFT_OUTER
-    + SHADOW_HARD_REL
-    + SHADOW_HARD_ABS
-    + SHADOW_SOFT_INNER_ABS
-    + SHADOW_SOFT_INNER_REL
-    + PATH4539_HOLE
-)
+# After width-thinning, lengthen stem segments to preserve tip-to-tip with smaller heads.
+SHADOW_STEM_LENGTH: list[tuple[str, str]] = [
+    (
+        f"2.77734,0.002 v 1.5 3.5 l -2.77734,0.002",
+        f"2.77734,0.002 v 1.5 {3.5 + STEM_EXTRA:.5f} l -2.77734,0.002",
+    ),
+    (
+        f"2.77735,0.002 v 1.5 3.5 l -2.77735,0.002",
+        f"2.77735,0.002 v 1.5 {3.5 + STEM_EXTRA:.5f} l -2.77735,0.002",
+    ),
+    (
+        f"-2.78711,0.002 v -3.5 -1.5 l 2.78711,0.004",
+        f"-2.78711,0.002 v {-3.5 - STEM_EXTRA:.5f} -1.5 l 2.78711,0.004",
+    ),
+    (
+        f"3.05664,0.004 v 1 3.00195 l -3.05664,0.002",
+        f"3.05664,0.004 v 1 {3.00195 + STEM_EXTRA:.5f} l -3.05664,0.002",
+    ),
+    (
+        f"-3.07422,0.002 v -2.99805 -0.99805 l 3.07422,0.002",
+        f"-3.07422,0.002 v {-2.99805 - STEM_EXTRA:.5f} -0.99805 l 3.07422,0.002",
+    ),
+    (
+        f"L 130.5,-214 v 1 3.00195 l -3.05664,0.002",
+        f"L 130.5,-214 v 1 {3.00195 + STEM_EXTRA:.5f} l -3.05664,0.002",
+    ),
+    (
+        f"L 150.5,-241 v 1 3.00195 l -3.05664,0.002",
+        f"L 150.5,-241 v 1 {3.00195 + STEM_EXTRA:.5f} l -3.05664,0.002",
+    ),
+    (
+        f"L 150.5,-241 v 1 3 l -3.05469,0.002",
+        f"L 150.5,-241 v 1 {3 + STEM_EXTRA:.5f} l -3.05469,0.002",
+    ),
+    (
+        f"L 132.25,-214.5 v 2.5 4.5 l 1.93555",
+        f"L 132.25,-214.5 v 2.5 {4.5 + STEM_EXTRA:.5f} l 1.93555",
+    ),
+    (
+        f"L 131.75,-207.5 v -4.5 -2.5 l -1.93945",
+        f"L 131.75,-207.5 v {-4.5 - STEM_EXTRA:.5f} -2.5 l -1.93945",
+    ),
+    (
+        f"l -2.18359,-0.002 v 2.5 4.5 l 2.18555,-0.002",
+        f"l -2.18359,-0.002 v 2.5 {4.5 + STEM_EXTRA:.5f} l 2.18555,-0.002",
+    ),
+    (
+        f"l 2.18945,-0.002 v -4.5 -2.5 l -2.18945,-0.002",
+        f"l 2.18945,-0.002 v {-4.5 - STEM_EXTRA:.5f} -2.5 l -2.18945,-0.002",
+    ),
+    (
+        f"L 152.5,-242 v 2 4 l 2.5,-0.002",
+        f"L 152.5,-242 v 2 {4 + STEM_EXTRA:.5f} l 2.5,-0.002",
+    ),
+    (
+        f"l 2.5,-0.002 v -4 -2 l -2.5,-0.002",
+        f"l 2.5,-0.002 v {-4 - STEM_EXTRA:.5f} -2 l -2.5,-0.002",
+    ),
+]
 
 
 def extract_path_block(text: str, path_id: str) -> tuple[str, str] | None:
-    """Return (full path element, d attribute) for id, or None."""
     id_attr = f'id="{path_id}"'
     idx = text.find(id_attr)
     if idx < 0:
@@ -144,24 +202,12 @@ def replace_path_d(text: str, path_id: str, new_d: str) -> str:
     return text.replace(block, new_block, 1)
 
 
-def apply_replacements(path_data: str, replacements: list[tuple[str, str]], path_id: str) -> str:
-    for old, new in replacements:
-        if old not in path_data:
-            if new in path_data:
-                continue
-            raise ValueError(f"{path_id}: expected fragment not found: {old!r}")
-        path_data = path_data.replace(old, new)
-    return path_data
-
-
 def restore_ids_from_master(text: str, master_text: str, ids: tuple[str, ...]) -> str:
     for path_id in ids:
         master = extract_path_block(master_text, path_id)
         current = extract_path_block(text, path_id)
-        if not master:
-            raise ValueError(f"master missing {path_id}")
-        if not current:
-            raise ValueError(f"current missing {path_id}")
+        if not master or not current:
+            raise ValueError(f"missing {path_id}")
         _, master_d = master
         _, current_d = current
         if current_d != master_d:
@@ -170,41 +216,63 @@ def restore_ids_from_master(text: str, master_text: str, ids: tuple[str, ...]) -
     return text
 
 
-def thin_export_templates(text: str) -> str:
+def patch_export_templates(text: str) -> str:
+    known = {EXPORT_TEMPLATE_MASTER, EXPORT_TEMPLATE_THIN_STEM, EXPORT_TEMPLATE_FINAL}
+    # Prior asymmetric head-shrink attempt (replaced by mirror-symmetric FINAL).
+    known.add(
+        "m 132,-220.5 c -0.46745,0.7395 -0.92192,1.50965 -1.36133,2.30596 "
+        "-0.43834,0.80394 -0.83406,1.59175 -1.18867,2.36739 l 2.05,0.002 v 2 5.64941 "
+        "l -2.05,0.002 c 0.35461,0.77563 0.75033,1.56345 1.18867,2.36739 "
+        "0.43941,0.79635 0.89388,1.56646 1.36133,2.30596 0.45809,-0.7395 "
+        "0.90699,-1.50957 1.34638,-2.30596 0.43859,-0.8044 0.83954,-1.59463 "
+        "1.20362,-2.3707 l -2.05,0.002 v -5.64941 -2 l 2.05,0.002 "
+        "c -0.36407,-0.77905 -0.76503,-1.56929 -1.20362,-2.37369 "
+        "C 132.90699,-218.99043 132.45809,-219.7605 132,-220.5 Z"
+    )
     for path_id in EXPORT_TEMPLATE_IDS:
         found = extract_path_block(text, path_id)
         if not found:
             raise ValueError(f"missing export template {path_id}")
         _, d = found
-        new_d = apply_replacements(d, EXPORT_STEM_REPLACEMENTS, path_id)
-        text = replace_path_d(text, path_id, new_d)
-        if new_d != d:
-            print(f"  thinned export {path_id}")
+        if d == EXPORT_TEMPLATE_FINAL:
+            continue
+        if d in known:
+            text = replace_path_d(text, path_id, EXPORT_TEMPLATE_FINAL)
+            print(f"  export {path_id} -> thin stem + small heads")
+        else:
+            raise ValueError(f"{path_id}: unexpected template path data")
     return text
 
 
-def thin_shadows(text: str) -> str:
+def apply_shadow_replacements(d: str, replacements: list[tuple[str, str]]) -> str:
+    for old, new in replacements:
+        if old in d:
+            d = d.replace(old, new)
+    return d
+
+
+def patch_shadows(text: str, master_text: str) -> str:
+    """Restore shadows from master, then apply stem width-thin only.
+
+    Head shapes in soft shadows stay at master size (blurred halo). Stem
+    length is NOT extended here — lengthening without head shrink made
+    shadows longer than the cursor tip-to-tip.
+    """
     for path_id in SHADOW_IDS:
-        found = extract_path_block(text, path_id)
-        if not found:
-            raise ValueError(f"missing shadow {path_id}")
-        _, d = found
-        original = d
-        for old, new in ALL_SHADOW_REPLACEMENTS:
-            if old in d:
-                d = d.replace(old, new)
-        if d != original:
-            text = replace_path_d(text, path_id, d)
-            print(f"  thinned shadow {path_id}")
-        else:
-            print(f"  shadow unchanged {path_id}")
+        master = extract_path_block(master_text, path_id)
+        if not master:
+            raise ValueError(f"master missing shadow {path_id}")
+        _, master_d = master
+        d = apply_shadow_replacements(master_d, SHADOW_STEM_WIDTH)
+        text = replace_path_d(text, path_id, d)
+        print(f"  shadow {path_id} patched from master")
     return text
 
 
 def patch_svg(text: str, master_text: str) -> str:
     text = restore_ids_from_master(text, master_text, WRONG_SLICE_IDS)
-    text = thin_export_templates(text)
-    text = thin_shadows(text)
+    text = patch_export_templates(text)
+    text = patch_shadows(text, master_text)
     return text
 
 
